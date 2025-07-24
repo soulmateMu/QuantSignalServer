@@ -1,0 +1,141 @@
+﻿@page "/strategies"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
+
+<h3>策略管理</h3>
+
+@if (strategies == null)
+{
+    <p>加载中...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>转发目标</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var strategy in strategies)
+            {
+                <tr>
+                    <td>@strategy.Name</td>
+                    <td>@string.Join(", ", strategy.ForwardTargets.Select(t => t.Url))</td>
+                    <td>
+                        <button class="btn btn-primary" @onclick="() => EditStrategy(strategy)">编辑</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteStrategy(strategy.Name)">删除</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<EditForm Model="@editStrategyDto" OnValidSubmit="SaveStrategy">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label>策略名称</label>
+        <InputText class="form-control" @bind-Value="editStrategyDto.Name" />
+    </div>
+    <div class="mb-3">
+        <label>转发目标 (每行一个URL)</label>
+        <InputTextArea class="form-control" @bind-Value="forwardTargetsInput" />
+    </div>
+    <button type="submit" class="btn btn-success">保存</button>
+    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">取消</button>
+</EditForm>
+
+@code {
+    private List<QuantSignalServer.Models.Strategy> strategies = new();
+    private QuantSignalServer.DTOs.StrategyDTO editStrategyDto = new() { Name = "", ForwardTargets = new List<string>() };
+    private string forwardTargetsInput = string.Empty;
+    private bool isEditing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStrategies();
+    }
+
+    private async Task LoadStrategies()
+    {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/Strategy");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            strategies = await response.Content.ReadFromJsonAsync<List<QuantSignalServer.Models.Strategy>>() ?? new();
+        }
+    }
+
+    private async Task SaveStrategy()
+    {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var urls = forwardTargetsInput.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(u => u.Trim()).Where(u => !string.IsNullOrEmpty(u)).ToList();
+        editStrategyDto.ForwardTargets = urls;
+
+        HttpRequestMessage request;
+        if (!isEditing)
+        {
+            request = new HttpRequestMessage(HttpMethod.Post, "/api/Strategy")
+            {
+                Content = JsonContent.Create(editStrategyDto)
+            };
+        }
+        else
+        {
+            request = new HttpRequestMessage(HttpMethod.Put, $"/api/Strategy/{editStrategyDto.Name}")
+            {
+                Content = JsonContent.Create(editStrategyDto)
+            };
+        }
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadStrategies();
+            ResetForm();
+        }
+    }
+
+    private void EditStrategy(QuantSignalServer.Models.Strategy strategy)
+    {
+        editStrategyDto = new QuantSignalServer.DTOs.StrategyDTO
+        {
+            Name = strategy.Name,
+            ForwardTargets = strategy.ForwardTargets.Select(t => t.Url).ToList()
+        };
+        forwardTargetsInput = string.Join("\n", strategy.ForwardTargets.Select(t => t.Url));
+        isEditing = true;
+    }
+
+    private async Task DeleteStrategy(string name)
+    {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/Strategy/{name}");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadStrategies();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        editStrategyDto = new QuantSignalServer.DTOs.StrategyDTO { Name = "", ForwardTargets = new List<string>() };
+        forwardTargetsInput = string.Empty;
+        isEditing = false;
+    }
+}

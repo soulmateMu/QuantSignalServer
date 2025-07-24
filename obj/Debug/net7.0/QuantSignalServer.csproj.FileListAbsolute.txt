@@ -1,0 +1,9 @@
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.csproj.AssemblyReference.cache
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.GeneratedMSBuildEditorConfig.editorconfig
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.AssemblyInfoInputs.cache
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.AssemblyInfo.cs
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.csproj.CoreCompileInputs.cache
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.MvcApplicationPartsAssemblyInfo.cs
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.MvcApplicationPartsAssemblyInfo.cache
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.RazorAssemblyInfo.cache
+E:\UnityLearn\QuantSignalServer\obj\Debug\net7.0\QuantSignalServer.RazorAssemblyInfo.cs

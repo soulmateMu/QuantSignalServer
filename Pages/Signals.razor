@@ -1,0 +1,100 @@
+﻿@page "/signals"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@inject QuantSignalServer.Services.StrategyService StrategyService
+@inject QuantSignalServer.Services.SignalForwarder SignalService
+
+<h3>信号历史</h3>
+
+<div class="mb-3">
+    <label>选择策略</label>
+    <InputSelect class="form-control" @bind-Value="selectedStrategyName" @onchange="OnStrategyChanged">
+        <option value="">所有策略</option>
+        @foreach (var strategy in strategies)
+        {
+            <option value="@strategy.Name">@strategy.Name</option>
+        }
+    </InputSelect>
+</div>
+
+@if (signals == null)
+{
+    <p>加载中...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>策略名称</th>
+                <th>股票名称</th>
+                <th>股票代码</th>
+                <th>方向</th>
+                <th>数量</th>
+                <th>价值</th>
+                <th>时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var signal in signals)
+            {
+                <tr>
+                    <td>@signal.StrategyName</td>
+                    <td>@signal.StockName</td>
+                    <td>@signal.StockCode</td>
+                    <td>@signal.Direction</td>
+                    <td>@signal.Quantity</td>
+                    <td>@signal.Value</td>
+                    <td>@signal.Timestamp</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@inject HttpClient Http
+
+@code {
+    private List<QuantSignalServer.Models.Strategy> strategies = new();
+    private List<QuantSignalServer.Models.Signal> signals = new();
+    private string selectedStrategyName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStrategies();
+        await LoadSignals();
+    }
+
+    private async Task LoadStrategies()
+    {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/Strategy");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            strategies = await response.Content.ReadFromJsonAsync<List<QuantSignalServer.Models.Strategy>>() ?? new List<QuantSignalServer.Models.Strategy>();
+        }
+    }
+
+    private async Task LoadSignals()
+    {
+        var token = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var url = string.IsNullOrEmpty(selectedStrategyName)
+            ? "/api/Signal"
+            : $"/api/Signal/{selectedStrategyName}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await Http.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            signals = await response.Content.ReadFromJsonAsync<List<QuantSignalServer.Models.Signal>>() ?? new List<QuantSignalServer.Models.Signal>();
+        }
+    }
+
+    private async Task OnStrategyChanged()
+    {
+        await LoadSignals();
+    }
+}
