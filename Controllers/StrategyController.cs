@@ -1,87 +1,92 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using QuantSignalServer.Services;
-using QuantSignalServer.DTOs;
-using QuantSignalServer.Data;
 using Microsoft.EntityFrameworkCore;
+using QuantSignalServer.Data;
+using QuantSignalServer.DTOs;
+using QuantSignalServer.Models;
+using System.Security.Claims;
 
 namespace QuantSignalServer.Controllers
 {
-    [Authorize]
-    [ApiController]
     [Route("api/[controller]")]
+    [ApiController]
+    [Authorize]
     public class StrategyController : ControllerBase
     {
-        private readonly StrategyService _strategyService;
-        private readonly AppDbContext _context; // 新增
+        private readonly AppDbContext _context;
+        private readonly ILogger<StrategyController> _logger;
 
-        public StrategyController(StrategyService strategyService, AppDbContext context) // 修改构造函数
+        public StrategyController(AppDbContext context, ILogger<StrategyController> logger)
         {
-            _strategyService = strategyService;
-            _context = context; // 新增
+            _context = context;
+            _logger = logger;
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateStrategy([FromBody] StrategyDTO strategyDto)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var claims = User.Claims.Select(c => $"{c.Type}: {c.Value}");
+            _logger.LogInformation($"JWT Claims: {string.Join(", ", claims)}");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
-                return Unauthorized();
-
-            // 查询用户
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id.ToString() == userId);
-            if (user == null)
-                return Unauthorized();
-
-            // 非VIP用户最多只能注册3个策略
-            if (!user.IsVIP)
             {
-                var count = await _context.Strategies.CountAsync(s => s.UserId == user.Id);
-                if (count >= 3)
-                    return BadRequest("非VIP用户最多只能注册3个策略，如需更多请升级为VIP。");
+                _logger.LogError("无法获取用户 ID，可能 JWT 验证失败");
+                return Unauthorized("无法获取用户 ID");
+            }
+            if (!int.TryParse(userId, out int parsedUserId))
+            {
+                _logger.LogError($"无效的用户 ID 格式: {userId}");
+                return BadRequest("无效的用户 ID 格式");
+            }
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == parsedUserId);
+            if (user == null)
+            {
+                _logger.LogError($"用户 ID {parsedUserId} 不存在");
+                return Unauthorized($"用户 ID {parsedUserId} 不存在");
+            }
+            _logger.LogInformation($"用户 ID: {parsedUserId}, 用户名: {user.Username}, IsVIP: {user.IsVIP}");
+
+            // 检查策略名称是否已存在
+            if (await _context.Strategies.AnyAsync(s => s.Name == strategyDto.Name))
+            {
+                _logger.LogWarning($"策略名称 '{strategyDto.Name}' 已存在");
+                return BadRequest($"策略名称 '{strategyDto.Name}' 已存在，请使用其他名称");
             }
 
-            var result = await _strategyService.CreateStrategyAsync(strategyDto, int.Parse(userId));
-            if (!result.Success || result.Strategy == null)
-                return BadRequest(result.Message);
-            return Ok(result.Strategy);
-        }
+            if (!user.IsVIP)
+            {
+                var count = await _context.Strategies.CountAsync(s => s.UserId == parsedUserId);
+                if (count >= 3)
+                    return BadRequest($"非 VIP 用户最多只能注册 3 个策略，当前已有 {count} 个，如需更多请升级为 VIP。");
+            }
 
-        [HttpGet]
-        public async Task<IActionResult> GetStrategies()
-        {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
-                return Unauthorized();
+            var strategy = new Strategy
+            {
+                Name = strategyDto.Name,
+                UserId = parsedUserId,
+                User = user,
+                ForwardTargets = strategyDto.ForwardTargets.Select(url => new ForwardTarget { Url = url }).ToList()
+            };
 
-            var strategies = await _strategyService.GetStrategiesAsync(int.Parse(userId));
-            return Ok(strategies);
-        }
+            try
+            {
+                _context.Strategies.Add(strategy);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.Sqlite.SqliteException sqliteEx && sqliteEx.SqliteErrorCode == 19)
+            {
+                _logger.LogError(ex, $"保存策略失败，名称 '{strategyDto.Name}' 已存在");
+                return BadRequest($"策略名称 '{strategyDto.Name}' 已存在，请使用其他名称");
+            }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateStrategy(string id, [FromBody] StrategyDTO strategyDto)
-        {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
-                return Unauthorized();
-
-            var result = await _strategyService.UpdateStrategyAsync(id, strategyDto, int.Parse(userId));
-            if (!result.Success || result.Strategy == null)
-                return BadRequest(result.Message);
-            return Ok(result.Strategy);
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteStrategy(string id)
-        {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
-                return Unauthorized();
-
-            var result = await _strategyService.DeleteStrategyAsync(id, int.Parse(userId));
-            if (!result.Success)
-                return BadRequest(result.Message);
-            return Ok();
+            var response = new StrategyResponseDTO
+            {
+                Id = strategy.Id,
+                Name = strategy.Name,
+                UserId = strategy.UserId,
+                ForwardTargets = strategy.ForwardTargets.Select(ft => ft.Url).ToList()
+            };
+            return Ok(response);
         }
     }
 }

@@ -20,10 +20,15 @@ namespace QuantSignalServer.Services
             if (await _context.Strategies.AnyAsync(s => s.Name == strategyDto.Name && s.UserId == userId))
                 return (false, null, "Strategy name already exists");
 
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return (false, null, "User not found");
+
             var strategy = new Strategy
             {
                 Name = strategyDto.Name,
                 UserId = userId,
+                User = user,
                 ForwardTargets = strategyDto.ForwardTargets?.Select(url => new ForwardTarget { Url = url }).ToList() ?? new List<ForwardTarget>()
             };
             _context.Strategies.Add(strategy);

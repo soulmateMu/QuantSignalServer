@@ -41,7 +41,12 @@ builder.Services.AddScoped<HttpClient>(sp =>
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<StrategyService>();
 builder.Services.AddScoped<SignalForwarder>();
-builder.Services.AddLogging(logging => logging.AddConsole());
+// 在这里添加日志配置
+builder.Services.AddLogging(logging =>
+{
+    logging.AddConsole();
+    logging.SetMinimumLevel(LogLevel.Debug);
+});
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -76,7 +81,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseMiddleware<JwtMiddleware>();
+//app.UseMiddleware<JwtMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

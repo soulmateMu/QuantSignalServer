@@ -62,14 +62,15 @@ if __name__ == "__main__":
     client = QuantSignalClient("https://localhost:63737")
 
     # 注册
-    client.register("testuser", "testpassword")
-    time.sleep(1)
+    #client.register("testuser", "123456")
+    #time.sleep(1)
     # 登录
-    client.login("testuser", "testpassword")
+    client.login("testuser", "123456")
     time.sleep(1)
     # 注册策略
-    client.register_strategy("demo_strategy", ["http://target1.com", "http://target2.com"])
-    time.sleep(1)
+    #client.register_strategy("demo_strategy", ["http://target1.com", "http://target2.com"])
+    
+    #time.sleep(1)
     # 发送交易信号
     client.send_signal("demo_strategy", {"symbol": "BTCUSDT", "action": "buy", "price": 30000})
     time.sleep(1)
